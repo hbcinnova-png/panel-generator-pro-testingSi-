@@ -1,0 +1,114 @@
+name: HBC3 Fix Uvicorn Import
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/HBC3_FIX_UVICORN_IMPORT.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix-uvicorn-import:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Patch backend/api.py uvicorn import
+        shell: python
+        run: |
+          from pathlib import Path
+
+          api = Path("backend/api.py")
+          status_dir = Path("HBC_COMMAND_CENTER")
+          status_dir.mkdir(exist_ok=True)
+          status_file = status_dir / "HBC3_FIX_UVICORN_IMPORT_STATUS.md"
+
+          if not api.exists():
+              status_file.write_text(
+                  "# HBC3 FIX UVICORN IMPORT\n\nEstado: BLOQUEO_REAL\n\nNo existe backend/api.py.\n",
+                  encoding="utf-8",
+              )
+              raise SystemExit("BLOQUEO_REAL: No existe backend/api.py")
+
+          text = api.read_text(encoding="utf-8")
+
+          if "uvicorn.run(" not in text:
+              status_file.write_text(
+                  "# HBC3 FIX UVICORN IMPORT\n\nEstado: SIN_CAMBIOS\n\nNo se encontró uvicorn.run en backend/api.py.\n",
+                  encoding="utf-8",
+              )
+              print("SIN_CAMBIOS: no uvicorn.run")
+              raise SystemExit(0)
+
+          if "import uvicorn" not in text:
+              lines = text.splitlines()
+              insert_at = 0
+
+              for i, line in enumerate(lines):
+                  stripped = line.strip()
+                  if stripped.startswith("import ") or stripped.startswith("from "):
+                      insert_at = i + 1
+
+              lines.insert(insert_at, "import uvicorn")
+              text = "\n".join(lines) + "\n"
+              api.write_text(text, encoding="utf-8")
+
+              status_file.write_text(
+                  "# HBC3 FIX UVICORN IMPORT\n\n"
+                  "Estado: CORREGIDO\n\n"
+                  "Archivo: `backend/api.py`\n\n"
+                  "Cambio aplicado:\n\n"
+                  "```python\n"
+                  "import uvicorn\n"
+                  "```\n\n"
+                  "Motivo: `uvicorn.run(...)` existía, pero `uvicorn` no estaba importado.\n\n"
+                  "Estado: APTO PARA TESTING / NO VALIDADO EN PRODUCCIÓN.\n",
+                  encoding="utf-8",
+              )
+              print("CORREGIDO: import uvicorn añadido")
+          else:
+              status_file.write_text(
+                  "# HBC3 FIX UVICORN IMPORT\n\nEstado: YA_CORREGIDO\n\n`import uvicorn` ya existe en backend/api.py.\n",
+                  encoding="utf-8",
+              )
+              print("YA_CORREGIDO")
+
+      - name: Validate Python syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile backend/api.py
+          python -m py_compile backend/repair_agents/*.py
+          grep -n "import uvicorn\|uvicorn.run" backend/api.py
+          echo "backend/api.py compila con uvicorn"
+
+      - name: Commit fix
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "hbc3-agent"
+          git config user.email "hbc3-agent@users.noreply.github.com"
+
+          git add backend/api.py HBC_COMMAND_CENTER/HBC3_FIX_UVICORN_IMPORT_STATUS.md
+
+          if git diff --cached --quiet; then
+            echo "Sin cambios que confirmar."
+          else
+            git commit -m "Fix uvicorn import in backend api"
+            git push
+          fi
+
+      - name: Final status
+        run: |
+          echo "HBC3 FINAL"
+          echo "uvicorn import corregido en backend/api.py"
+          echo "APTO PARA TESTING"
+          echo "NO VALIDADO EN PRODUCCIÓN"
