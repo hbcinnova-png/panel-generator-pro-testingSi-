@@ -1,0 +1,11 @@
+HBC3 FINAL GOOD FIX
+
+Cambios aplicados:
+1. PostgreSQL: eliminados INDEX dentro de CREATE TABLE; movidos a CREATE INDEX IF NOT EXISTS.
+2. PayPal SDK: requirements fijado a paypalrestsdk==1.13.3.
+3. PayPal SDK: añadido backend/sitecustomize.py para corregir ModuleNotFoundError: paypalrestsdk.version.
+4. Backend: import de PayPal protegido para que uvicorn no crashee si faltan credenciales/SDK.
+5. Docker Compose: quitado version obsoleto, variables externas con valores vacíos seguros, comando backend sin --reload.
+6. Dockerfile: healthcheck corregido de /api/v1/health a /health.
+
+Estado local: ZIP preparado. No validado con Docker local porque este entorno no tiene Docker instalado.

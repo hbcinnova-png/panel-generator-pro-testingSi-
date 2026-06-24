@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Generator Pro - Crea tu Panel Premium</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="container">
+                <div class="logo">
+                    <span class="logo-icon">⚡</span>
+                    <span class="logo-text">Panel Generator Pro</span>
+                </div>
+                <nav class="nav">
+                    <a href="#features">Características</a>
+                    <a href="#pricing">Precios</a>
+                    <a href="#docs">Documentación</a>
+                    <button class="btn btn-login">Iniciar Sesión</button>
+                </nav>
+            </div>
+        </header>
+
+        <!-- Hero Section -->
+        <section class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h1>Genera Paneles Premium en Segundos</h1>
+                    <p>Crea paneles animados profesionales para tu negocio sin escribir código</p>
+                    <button class="btn btn-primary btn-lg" onclick="scrollToForm()">Comenzar Ahora</button>
+                </div>
+                <div class="hero-image">
+                    <div class="preview-card">
+                        <div class="preview-placeholder">Vista Previa</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Content -->
+        <div class="main-container">
+            <!-- Form Section -->
+            <section class="form-section">
+                <div class="container">
+                    <h2>Configura tu Panel</h2>
+                    <form id="panelForm" class="form-grid">
+                        <!-- Step 1: Información Básica -->
+                        <div class="form-step active" data-step="1">
+                            <h3>Información del Negocio</h3>
+                            
+                            <div class="form-group">
+                                <label>Nombre del Negocio *</label>
+                                <input type="text" name="businessName" placeholder="Ej: Doctor Piscinas" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Descripción *</label>
+                                <textarea name="description" placeholder="Describe tu negocio" required></textarea>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Teléfono *</label>
+                                    <input type="tel" name="phone" placeholder="+34 XXX XXX XXX" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Email *</label>
+                                    <input type="email" name="email" placeholder="contacto@negocio.com" required>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Sitio Web (Opcional)</label>
+                                <input type="url" name="website" placeholder="https://tunegocios.com">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Logo (Opcional)</label>
+                                <input type="file" name="logo" accept="image/*">
+                            </div>
+                        </div>
+
+                        <!-- Step 2: Diseño y Tema -->
+                        <div class="form-step" data-step="2">
+                            <h3>Diseño y Tema</h3>
+                            
+                            <div class="form-group">
+                                <label>Tema Predefinido *</label>
+                                <div class="theme-selector">
+                                    <div class="theme-option" data-theme="doctor_piscinas">
+                                        <div class="theme-preview" style="background: linear-gradient(135deg, #ff006e 0%, #00d9ff 100%);"></div>
+                                        <span>Doctor Piscinas</span>
+                                    </div>
+                                    <div class="theme-option" data-theme="tech_future">
+                                        <div class="theme-preview" style="background: linear-gradient(135deg, #00d9ff 0%, #a000ff 100%);"></div>
+                                        <span>Tech Future</span>
+                                    </div>
+                                    <div class="theme-option" data-theme="luxury_gold">
+                                        <div class="theme-preview" style="background: linear-gradient(135deg, #ffd700 0%, #1a1a1a 100%);"></div>
+                                        <span>Luxury Gold</span>
+                                    </div>
+                                    <div class="theme-option" data-theme="nature_green">
+                                        <div class="theme-preview" style="background: linear-gradient(135deg, #00aa44 0%, #8b7355 100%);"></div>
+                                        <span>Nature Green</span>
+                                    </div>
+                                    <div class="theme-option" data-theme="gaming_neon">
+                                        <div class="theme-preview" style="background: linear-gradient(135deg, #ff00ff 0%, #00ffff 100%);"></div>
+                                        <span>Gaming Neon</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Color Primario *</label>
+                                <input type="color" name="colorPrimary" value="#ff006e">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Color Secundario *</label>
+                                <input type="color" name="colorSecondary" value="#00d9ff">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Efectos Visuales</label>
+                                <div class="checkbox-group">
+                                    <label><input type="checkbox" name="effects" value="particles" checked> Partículas</label>
+                                    <label><input type="checkbox" name="effects" value="parallax" checked> Parallax</label>
+                                    <label><input type="checkbox" name="effects" value="glow" checked> Glow</label>
+                                    <label><input type="checkbox" name="effects" value="water" checked> Agua Animada</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 3: Servicios e Integraciones -->
+                        <div class="form-step" data-step="3">
+                            <h3>Servicios e Integraciones</h3>
+                            
+                            <div class="form-group">
+                                <label>Servicios (Agregar con Enter)</label>
+                                <div class="services-input">
+                                    <input type="text" id="serviceInput" placeholder="Ej: Reparación de Piscinas">
+                                    <div id="servicesList" class="services-list"></div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Integraciones</label>
+                                <div class="checkbox-group">
+                                    <label><input type="checkbox" name="integrations" value="whatsapp"> WhatsApp</label>
+                                    <label><input type="checkbox" name="integrations" value="email"> Email</label>
+                                    <label><input type="checkbox" name="integrations" value="telegram"> Telegram</label>
+                                    <label><input type="checkbox" name="integrations" value="stripe"> Stripe</label>
+                                    <label><input type="checkbox" name="integrations" value="shopify"> Shopify</label>
+                                    <label><input type="checkbox" name="integrations" value="crm"> CRM</label>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>WhatsApp (Opcional)</label>
+                                <input type="tel" name="whatsapp" placeholder="+34 XXX XXX XXX">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Redes Sociales</label>
+                                <div class="social-inputs">
+                                    <input type="url" name="facebook" placeholder="Facebook URL">
+                                    <input type="url" name="instagram" placeholder="Instagram URL">
+                                    <input type="url" name="twitter" placeholder="Twitter URL">
+                                    <input type="url" name="linkedin" placeholder="LinkedIn URL">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 4: Instalación -->
+                        <div class="form-step" data-step="4">
+                            <h3>Método de Instalación</h3>
+                            
+                            <div class="form-group">
+                                <label>¿Cómo quieres instalar el panel?</label>
+                                <div class="radio-group">
+                                    <label>
+                                        <input type="radio" name="installMethod" value="zip" checked>
+                                        <span>Descargar ZIP</span>
+                                        <small>Descarga el plugin y instálalo manualmente</small>
+                                    </label>
+                                    <label>
+                                        <input type="radio" name="installMethod" value="ftp">
+                                        <span>Instalación por FTP</span>
+                                        <small>Nosotros instalamos via FTP</small>
+                                    </label>
+                                    <label>
+                                        <input type="radio" name="installMethod" value="api">
+                                        <span>Instalación por API</span>
+                                        <small>Conecta tu WordPress via API</small>
+                                    </label>
+                                    <label>
+                                        <input type="radio" name="installMethod" value="oauth">
+                                        <span>Instalación por OAuth</span>
+                                        <small>Autoriza con tu cuenta WordPress</small>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div id="ftpFields" class="hidden">
+                                <div class="form-group">
+                                    <label>Host FTP</label>
+                                    <input type="text" name="ftpHost" placeholder="ftp.tudominio.com">
+                                </div>
+                                <div class="form-group">
+                                    <label>Usuario FTP</label>
+                                    <input type="text" name="ftpUser">
+                                </div>
+                                <div class="form-group">
+                                    <label>Contraseña FTP</label>
+                                    <input type="password" name="ftpPassword">
+                                </div>
+                            </div>
+
+                            <div id="apiFields" class="hidden">
+                                <div class="form-group">
+                                    <label>URL de WordPress</label>
+                                    <input type="url" name="wordpressUrl" placeholder="https://tudominio.com">
+                                </div>
+                                <div class="form-group">
+                                    <label>Usuario WordPress</label>
+                                    <input type="text" name="wordpressUser">
+                                </div>
+                                <div class="form-group">
+                                    <label>Contraseña WordPress</label>
+                                    <input type="password" name="wordpressPassword">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Navigation -->
+                        <div class="form-navigation">
+                            <button type="button" class="btn btn-secondary" id="prevBtn" onclick="previousStep()" style="display:none;">Anterior</button>
+                            <button type="button" class="btn btn-primary" id="nextBtn" onclick="nextStep()">Siguiente</button>
+                            <button type="submit" class="btn btn-success" id="submitBtn" style="display:none;">Generar Panel</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Preview Section -->
+            <section class="preview-section">
+                <div class="container">
+                    <h2>Vista Previa en Tiempo Real</h2>
+                    <div class="preview-container">
+                        <iframe id="previewFrame" src="about:blank" title="Vista previa del panel"></iframe>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Features Section -->
+        <section class="features" id="features">
+            <div class="container">
+                <h2>Características</h2>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">🎨</div>
+                        <h3>Temas Premium</h3>
+                        <p>5 temas predefinidos + personalización completa</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h3>Generación Rápida</h3>
+                        <p>Crea paneles en segundos, no en horas</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">📱</div>
+                        <h3>Totalmente Responsivo</h3>
+                        <p>Funciona perfecto en móvil, tablet y desktop</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔧</div>
+                        <h3>Fácil Instalación</h3>
+                        <p>4 métodos de instalación diferentes</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔐</div>
+                        <h3>Seguro</h3>
+                        <p>Encriptación, 2FA, auditoría completa</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">📊</div>
+                        <h3>Analytics</h3>
+                        <p>Estadísticas y reportes en tiempo real</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Pricing Section -->
+        <section class="pricing" id="pricing">
+            <div class="container">
+                <h2>Planes de Precios</h2>
+                <div class="pricing-grid">
+                    <div class="pricing-card">
+                        <h3>Gratuito</h3>
+                        <div class="price">$0<span>/mes</span></div>
+                        <ul class="features-list">
+                            <li>✓ 1 panel</li>
+                            <li>✓ Temas básicos</li>
+                            <li>✓ Soporte por email</li>
+                        </ul>
+                        <button class="btn btn-outline">Comenzar</button>
+                    </div>
+                    <div class="pricing-card featured">
+                        <div class="badge">Popular</div>
+                        <h3>Starter</h3>
+                        <div class="price">$29<span>/mes</span></div>
+                        <ul class="features-list">
+                            <li>✓ 5 paneles</li>
+                            <li>✓ Todos los temas</li>
+                            <li>✓ Integraciones básicas</li>
+                            <li>✓ Soporte prioritario</li>
+                        </ul>
+                        <button class="btn btn-primary">Suscribirse</button>
+                    </div>
+                    <div class="pricing-card">
+                        <h3>Pro</h3>
+                        <div class="price">$99<span>/mes</span></div>
+                        <ul class="features-list">
+                            <li>✓ Paneles ilimitados</li>
+                            <li>✓ Todas las integraciones</li>
+                            <li>✓ API access</li>
+                            <li>✓ Soporte 24/7</li>
+                        </ul>
+                        <button class="btn btn-outline">Suscribirse</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="container">
+                <div class="footer-content">
+                    <div class="footer-section">
+                        <h4>Panel Generator Pro</h4>
+                        <p>Plataforma profesional para generar paneles premium</p>
+                    </div>
+                    <div class="footer-section">
+                        <h4>Producto</h4>
+                        <ul>
+                            <li><a href="#features">Características</a></li>
+                            <li><a href="#pricing">Precios</a></li>
+                            <li><a href="#docs">Documentación</a></li>
+                        </ul>
+                    </div>
+                    <div class="footer-section">
+                        <h4>Legal</h4>
+                        <ul>
+                            <li><a href="#">Privacidad</a></li>
+                            <li><a href="#">Términos</a></li>
+                            <li><a href="#">Cookies</a></li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="footer-bottom">
+                    <p>&copy; 2024 Panel Generator Pro. Todos los derechos reservados.</p>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

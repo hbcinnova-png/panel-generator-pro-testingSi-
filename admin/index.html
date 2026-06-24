@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Generator Pro - Admin Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: 250px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .sidebar h2 {
+            margin-bottom: 30px;
+            font-size: 1.5em;
+        }
+        
+        .sidebar ul {
+            list-style: none;
+        }
+        
+        .sidebar li {
+            margin: 10px 0;
+        }
+        
+        .sidebar a {
+            color: white;
+            text-decoration: none;
+            display: block;
+            padding: 10px 15px;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar a:hover,
+        .sidebar a.active {
+            background: rgba(255,255,255,0.2);
+            padding-left: 20px;
+        }
+        
+        /* Main content */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Header */
+        .header {
+            background: white;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            font-size: 1.8em;
+        }
+        
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .user-menu button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .user-menu button:hover {
+            background: #764ba2;
+        }
+        
+        /* Content area */
+        .content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        /* Dashboard sections */
+        .section {
+            display: none;
+        }
+        
+        .section.active {
+            display: block;
+        }
+        
+        /* Cards */
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .card h2 {
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+        
+        /* Stats grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-left: 4px solid #667eea;
+        }
+        
+        .stat-card h3 {
+            color: #999;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card .value {
+            font-size: 2em;
+            color: #667eea;
+            font-weight: bold;
+        }
+        
+        /* Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        table th {
+            background: #f5f7fa;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #667eea;
+        }
+        
+        table td {
+            padding: 15px;
+            border-top: 1px solid #eee;
+        }
+        
+        table tr:hover {
+            background: #f9f9f9;
+        }
+        
+        /* Forms */
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #667eea;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: inherit;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        /* Buttons */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #764ba2;
+        }
+        
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #e53e3e;
+        }
+        
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #38a169;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            
+            .sidebar ul {
+                display: none;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <h2>🎨 Panel Pro</h2>
+            <ul>
+                <li><a href="#" onclick="showSection('dashboard')" class="nav-link active">Dashboard</a></li>
+                <li><a href="#" onclick="showSection('users')" class="nav-link">Usuarios</a></li>
+                <li><a href="#" onclick="showSection('panels')" class="nav-link">Paneles</a></li>
+                <li><a href="#" onclick="showSection('subscriptions')" class="nav-link">Suscripciones</a></li>
+                <li><a href="#" onclick="showSection('payments')" class="nav-link">Pagos</a></li>
+                <li><a href="#" onclick="showSection('analytics')" class="nav-link">Analytics</a></li>
+                <li><a href="#" onclick="showSection('settings')" class="nav-link">Configuración</a></li>
+            </ul>
+        </div>
+        
+        <!-- Main content -->
+        <div class="main">
+            <!-- Header -->
+            <div class="header">
+                <h1>Panel de Administración</h1>
+                <div class="user-menu">
+                    <span id="user-name">Admin</span>
+                    <button onclick="logout()">Cerrar sesión</button>
+                </div>
+            </div>
+            
+            <!-- Content -->
+            <div class="content">
+                <!-- Dashboard Section -->
+                <div id="dashboard" class="section active">
+                    <h2>Dashboard</h2>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <h3>Usuarios Totales</h3>
+                            <div class="value" id="total-users">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Paneles Creados</h3>
+                            <div class="value" id="total-panels">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Ingresos (Este mes)</h3>
+                            <div class="value" id="monthly-revenue">$0</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Suscripciones Activas</h3>
+                            <div class="value" id="active-subscriptions">0</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h2>Actividad Reciente</h2>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Usuario</th>
+                                    <th>Acción</th>
+                                    <th>Fecha</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="activity-table">
+                                <tr>
+                                    <td colspan="4" style="text-align: center; color: #999;">Cargando...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Users Section -->
+                <div id="users" class="section">
+                    <h2>Gestión de Usuarios</h2>
+                    
+                    <div class="card">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Email</th>
+                                    <th>Username</th>
+                                    <th>Creado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table">
+                                <tr>
+                                    <td colspan="5" style="text-align: center; color: #999;">Cargando...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Panels Section -->
+                <div id="panels" class="section">
+                    <h2>Gestión de Paneles</h2>
+                    
+                    <div class="card">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>Usuario</th>
+                                    <th>Tema</th>
+                                    <th>Estado</th>
+                                    <th>Creado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="panels-table">
+                                <tr>
+                                    <td colspan="6" style="text-align: center; color: #999;">Cargando...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Subscriptions Section -->
+                <div id="subscriptions" class="section">
+                    <h2>Suscripciones</h2>
+                    
+                    <div class="card">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Usuario</th>
+                                    <th>Plan</th>
+                                    <th>Precio</th>
+                                    <th>Estado</th>
+                                    <th>Inicio</th>
+                                    <th>Fin</th>
+                                </tr>
+                            </thead>
+                            <tbody id="subscriptions-table">
+                                <tr>
+                                    <td colspan="6" style="text-align: center; color: #999;">Cargando...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Payments Section -->
+                <div id="payments" class="section">
+                    <h2>Pagos</h2>
+                    
+                    <div class="card">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Factura</th>
+                                    <th>Usuario</th>
+                                    <th>Monto</th>
+                                    <th>Estado</th>
+                                    <th>Fecha</th>
+                                </tr>
+                            </thead>
+                            <tbody id="payments-table">
+                                <tr>
+                                    <td colspan="5" style="text-align: center; color: #999;">Cargando...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Analytics Section -->
+                <div id="analytics" class="section">
+                    <h2>Analytics</h2>
+                    
+                    <div class="card">
+                        <h3>Estadísticas Generales</h3>
+                        <p>Gráficos y estadísticas detalladas aquí</p>
+                    </div>
+                </div>
+                
+                <!-- Settings Section -->
+                <div id="settings" class="section">
+                    <h2>Configuración</h2>
+                    
+                    <div class="card">
+                        <h3>Configuración General</h3>
+                        <form onsubmit="saveSettings(event)">
+                            <div class="form-group">
+                                <label>Nombre de la Aplicación</label>
+                                <input type="text" id="app-name" value="Panel Generator Pro">
+                            </div>
+                            <div class="form-group">
+                                <label>Email de Administrador</label>
+                                <input type="email" id="admin-email" value="admin@panelgenerator.pro">
+                            </div>
+                            <div class="form-group">
+                                <label>Moneda</label>
+                                <select id="currency">
+                                    <option value="USD">USD</option>
+                                    <option value="EUR">EUR</option>
+                                    <option value="MXN">MXN</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = 'http://localhost:8000/api/v1';
+        
+        // Show/hide sections
+        function showSection(sectionId) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.getElementById(sectionId).classList.add('active');
+            
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Load section data
+            loadSectionData(sectionId);
+        }
+        
+        // Load section data
+        function loadSectionData(sectionId) {
+            switch(sectionId) {
+                case 'dashboard':
+                    loadDashboard();
+                    break;
+                case 'users':
+                    loadUsers();
+                    break;
+                case 'panels':
+                    loadPanels();
+                    break;
+                case 'subscriptions':
+                    loadSubscriptions();
+                    break;
+                case 'payments':
+                    loadPayments();
+                    break;
+            }
+        }
+        
+        // Load dashboard data
+        async function loadDashboard() {
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                const data = await response.json();
+                
+                // Update stats (mock data for now)
+                document.getElementById('total-users').textContent = '1,234';
+                document.getElementById('total-panels').textContent = '5,678';
+                document.getElementById('monthly-revenue').textContent = '$12,345';
+                document.getElementById('active-subscriptions').textContent = '890';
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
+        }
+        
+        // Load users
+        async function loadUsers() {
+            try {
+                const response = await fetch(`${API_URL}/users`);
+                const data = await response.json();
+                
+                const table = document.getElementById('users-table');
+                table.innerHTML = '<tr><td colspan="5">No hay usuarios</td></tr>';
+            } catch (error) {
+                console.error('Error loading users:', error);
+            }
+        }
+        
+        // Load panels
+        async function loadPanels() {
+            try {
+                const response = await fetch(`${API_URL}/panels`);
+                const data = await response.json();
+                
+                const table = document.getElementById('panels-table');
+                table.innerHTML = '<tr><td colspan="6">No hay paneles</td></tr>';
+            } catch (error) {
+                console.error('Error loading panels:', error);
+            }
+        }
+        
+        // Load subscriptions
+        async function loadSubscriptions() {
+            try {
+                const response = await fetch(`${API_URL}/subscriptions`);
+                const data = await response.json();
+                
+                const table = document.getElementById('subscriptions-table');
+                table.innerHTML = '<tr><td colspan="6">No hay suscripciones</td></tr>';
+            } catch (error) {
+                console.error('Error loading subscriptions:', error);
+            }
+        }
+        
+        // Load payments
+        async function loadPayments() {
+            try {
+                const response = await fetch(`${API_URL}/payments`);
+                const data = await response.json();
+                
+                const table = document.getElementById('payments-table');
+                table.innerHTML = '<tr><td colspan="5">No hay pagos</td></tr>';
+            } catch (error) {
+                console.error('Error loading payments:', error);
+            }
+        }
+        
+        // Save settings
+        function saveSettings(event) {
+            event.preventDefault();
+            alert('Configuración guardada');
+        }
+        
+        // Logout
+        function logout() {
+            if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
+                window.location.href = '/login';
+            }
+        }
+        
+        // Load initial data
+        window.addEventListener('load', () => {
+            loadDashboard();
+        });
+    </script>
+</body>
+</html>
