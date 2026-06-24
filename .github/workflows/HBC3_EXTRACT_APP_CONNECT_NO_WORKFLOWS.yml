@@ -1,0 +1,286 @@
+name: HBC3 Extract App Connect No Workflows
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/HBC3_EXTRACT_APP_CONNECT_NO_WORKFLOWS.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  extract-connect-no-workflows:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Extract app ZIP without .github workflows
+        shell: python
+        run: |
+          from pathlib import Path
+          import shutil
+          import zipfile
+
+          status_dir = Path("HBC_COMMAND_CENTER")
+          status_dir.mkdir(exist_ok=True)
+          status_file = status_dir / "HBC3_EXTRACT_APP_CONNECT_NO_WORKFLOWS_STATUS.md"
+
+          zip_candidates = [
+              p for p in Path(".").glob("*.zip")
+              if "repair" not in p.name.lower()
+              and "agent" not in p.name.lower()
+              and "hbc3_repair" not in p.name.lower()
+          ]
+
+          if not zip_candidates:
+              status_file.write_text(
+                  "# HBC3 EXTRACT APP\n\nEstado: BLOQUEO_REAL\n\nNo se encontró ZIP principal de la aplicación.\n",
+                  encoding="utf-8",
+              )
+              raise SystemExit("BLOQUEO_REAL: No se encontró ZIP principal de la aplicación.")
+
+          zip_file = sorted(zip_candidates, key=lambda p: p.stat().st_size, reverse=True)[0]
+          print(f"ZIP principal detectado: {zip_file}")
+
+          extract_dir = Path("/tmp/hbc3_app_extract")
+          if extract_dir.exists():
+              shutil.rmtree(extract_dir)
+          extract_dir.mkdir(parents=True)
+
+          with zipfile.ZipFile(zip_file, "r") as z:
+              z.extractall(extract_dir)
+
+          candidates = []
+          for folder in [extract_dir] + [p for p in extract_dir.rglob("*") if p.is_dir()]:
+              names = {x.name for x in folder.iterdir()}
+              score = 0
+              if "backend" in names:
+                  score += 5
+              if "frontend" in names:
+                  score += 5
+              if "docker-compose.yml" in names:
+                  score += 5
+              if "docker-compose.yaml" in names:
+                  score += 5
+              if "requirements.txt" in names:
+                  score += 2
+              if score:
+                  candidates.append((score, folder))
+
+          if not candidates:
+              status_file.write_text(
+                  "# HBC3 EXTRACT APP\n\nEstado: BLOQUEO_REAL\n\nEl ZIP existe, pero no se detectó raíz de app.\n",
+                  encoding="utf-8",
+              )
+              raise SystemExit("BLOQUEO_REAL: ZIP sin estructura de app reconocible.")
+
+          candidates.sort(key=lambda x: x[0], reverse=True)
+          app_root = candidates[0][1]
+          print(f"Raíz de app detectada: {app_root}")
+
+          copied = []
+          skipped = []
+
+          for item in app_root.rglob("*"):
+              if not item.is_file():
+                  continue
+
+              rel = item.relative_to(app_root)
+
+              if rel.parts and rel.parts[0] == ".github":
+                  skipped.append(str(rel))
+                  continue
+
+              if "__pycache__" in rel.parts:
+                  skipped.append(str(rel))
+                  continue
+
+              target = Path(rel)
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(item, target)
+              copied.append(str(rel))
+
+          status_file.write_text(
+              "# HBC3 EXTRACT APP CONNECT NO WORKFLOWS\n\n"
+              "Estado: APP_EXTRAIDA_SIN_WORKFLOWS\n\n"
+              f"ZIP usado: `{zip_file.as_posix()}`\n\n"
+              f"Raíz detectada: `{app_root}`\n\n"
+              f"Archivos copiados: {len(copied)}\n\n"
+              f"Archivos .github omitidos: {len(skipped)}\n\n",
+              encoding="utf-8",
+          )
+
+      - name: Connect repair_agents router
+        shell: python
+        run: |
+          from pathlib import Path
+          import sys
+
+          status_dir = Path("HBC_COMMAND_CENTER")
+          status_dir.mkdir(exist_ok=True)
+          status_file = status_dir / "HBC3_CONNECT_REPAIR_ROUTER_STATUS.md"
+
+          required = [
+              Path("backend/repair_agents/router.py"),
+              Path("backend/repair_agents/diagnostic_agent.py"),
+              Path("backend/repair_agents/repair_agent.py"),
+              Path("backend/repair_agents/audit_agent.py"),
+              Path("backend/repair_agents/schemas.py"),
+              Path("backend/repair_agents/logs.py"),
+              Path("backend/repair_agents/safety.py"),
+          ]
+          missing = [str(p) for p in required if not p.exists()]
+          if missing:
+              status_file.write_text(
+                  "# HBC3 CONNECT ROUTER\n\nEstado: BLOQUEO_REAL\n\nFaltan archivos repair_agents:\n\n"
+                  + "\n".join(f"- {m}" for m in missing)
+                  + "\n",
+                  encoding="utf-8",
+              )
+              raise SystemExit(f"BLOQUEO_REAL: faltan archivos repair_agents: {missing}")
+
+          preferred = [
+              Path("backend/api.py"),
+              Path("backend/main.py"),
+              Path("main.py"),
+              Path("app/main.py"),
+          ]
+
+          candidates = []
+          for p in preferred:
+              if p.exists():
+                  candidates.append(p)
+
+          for p in Path(".").rglob("*.py"):
+              if ".git" in p.parts or "__pycache__" in p.parts or ".venv" in p.parts or "venv" in p.parts:
+                  continue
+              if p.as_posix().startswith("backend/repair_agents/"):
+                  continue
+              if p not in candidates:
+                  candidates.append(p)
+
+          fastapi_file = None
+          for p in candidates:
+              try:
+                  text = p.read_text(encoding="utf-8")
+              except UnicodeDecodeError:
+                  continue
+              if "FastAPI(" in text and ("app =" in text or "app=FastAPI" in text or "app = FastAPI" in text):
+                  fastapi_file = p
+                  break
+
+          if fastapi_file is None:
+              status_file.write_text(
+                  "# HBC3 CONNECT ROUTER\n\nEstado: BLOQUEO_REAL\n\nNo se encontró archivo FastAPI tras extraer la app.\n",
+                  encoding="utf-8",
+              )
+              raise SystemExit("BLOQUEO_REAL: No se encontró archivo FastAPI tras extraer la app.")
+
+          text = fastapi_file.read_text(encoding="utf-8")
+
+          if "app.include_router(repair_router" not in text:
+              import_block = (
+                  "\n# HBC3 repair_agents router\n"
+                  "try:\n"
+                  "    from backend.repair_agents.router import router as repair_router\n"
+                  "except ModuleNotFoundError:\n"
+                  "    from repair_agents.router import router as repair_router\n"
+              )
+              include_block = (
+                  "\n# HBC3 repair_agents router\n"
+                  "app.include_router(\n"
+                  "    repair_router,\n"
+                  '    prefix="/api/v1/repair",\n'
+                  '    tags=["repair_agents"],\n'
+                  ")\n"
+              )
+
+              if "repair_agents.router import router as repair_router" not in text:
+                  lines = text.splitlines()
+                  insert_at = 0
+                  for idx, line in enumerate(lines):
+                      stripped = line.strip()
+                      if stripped.startswith("import ") or stripped.startswith("from "):
+                          insert_at = idx + 1
+                  lines.insert(insert_at, import_block.rstrip("\n"))
+                  text = "\n".join(lines) + "\n"
+
+              text = text.rstrip() + "\n" + include_block
+              fastapi_file.write_text(text, encoding="utf-8")
+              estado = "CONECTADO"
+          else:
+              estado = "YA_CONECTADO"
+
+          status_file.write_text(
+              "# HBC3 CONNECT ROUTER\n\n"
+              f"Estado: {estado}\n\n"
+              f"Archivo FastAPI: `{fastapi_file.as_posix()}`\n\n"
+              "APTO PARA TESTING / NO VALIDADO EN PRODUCCIÓN.\n",
+              encoding="utf-8",
+          )
+
+          print(f"{estado}: {fastapi_file}")
+
+      - name: Validate Python syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile backend/repair_agents/*.py
+
+          FASTAPI_FILE="$(python - <<'PY'
+          from pathlib import Path
+          preferred = [Path("backend/api.py"), Path("backend/main.py"), Path("main.py"), Path("app/main.py")]
+          candidates = preferred + [p for p in Path(".").rglob("*.py") if p not in preferred and "backend/repair_agents" not in p.as_posix()]
+          for p in candidates:
+              if not p.exists():
+                  continue
+              try:
+                  t = p.read_text(encoding="utf-8")
+              except UnicodeDecodeError:
+                  continue
+              if "FastAPI(" in t and ("app =" in t or "app=FastAPI" in t or "app = FastAPI" in t):
+                  print(p.as_posix())
+                  break
+          PY
+          )"
+
+          if [ -z "$FASTAPI_FILE" ]; then
+            echo "BLOQUEO_REAL: FastAPI file not found."
+            exit 1
+          fi
+
+          python -m py_compile "$FASTAPI_FILE"
+          echo "FastAPI file OK: $FASTAPI_FILE"
+
+      - name: Commit extraction and connection
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "hbc3-agent"
+          git config user.email "hbc3-agent@users.noreply.github.com"
+
+          git add .
+          git reset .github/workflows/docker-test.yml 2>/dev/null || true
+          git reset .github/workflows/*.yml 2>/dev/null || true
+          git add .github/workflows/HBC3_EXTRACT_APP_CONNECT_NO_WORKFLOWS.yml || true
+
+          if git diff --cached --quiet; then
+            echo "Sin cambios que confirmar."
+          else
+            git commit -m "Extract app without workflows and connect HBC3 repair_agents"
+            git push
+          fi
+
+      - name: Final HBC3 status
+        run: |
+          echo "HBC3 FINAL"
+          echo "App extraída sin tocar workflows del ZIP"
+          echo "repair_agents conectado si se encontró FastAPI"
+          echo "APTO PARA TESTING"
+          echo "NO VALIDADO EN PRODUCCIÓN"
