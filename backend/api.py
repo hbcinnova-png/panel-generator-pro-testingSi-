@@ -736,3 +736,10 @@ app.include_router(
     prefix="/api/v1/repair",
     tags=["repair_agents"],
 )
+
+# HBC3 repair_agents router
+app.include_router(
+    repair_router,
+    prefix="/api/v1/repair",
+    tags=["repair_agents"],
+)
