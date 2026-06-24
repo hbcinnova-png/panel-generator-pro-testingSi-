@@ -1,0 +1,168 @@
+name: HBC3 Test Repair Agents Endpoints FINAL
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/HBC3_TEST_REPAIR_ENDPOINTS_FINAL.yml"
+      - "backend/**"
+      - "frontend/**"
+      - "docker-compose.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test-repair-agents-final:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Show HBC3 structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== ROOT ==="
+          ls -la
+          echo "=== BACKEND ==="
+          ls -la backend
+          echo "=== REPAIR_AGENTS ==="
+          ls -la backend/repair_agents
+
+      - name: Validate repair_agents Python
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f backend/repair_agents/router.py
+          test -f backend/repair_agents/diagnostic_agent.py
+          test -f backend/repair_agents/repair_agent.py
+          test -f backend/repair_agents/audit_agent.py
+          test -f backend/repair_agents/schemas.py
+          test -f backend/repair_agents/logs.py
+          test -f backend/repair_agents/safety.py
+          python -m py_compile backend/repair_agents/*.py
+          echo "repair_agents py_compile OK"
+
+      - name: Locate FastAPI file and verify router connection
+        shell: python
+        run: |
+          from pathlib import Path
+
+          preferred = [
+              Path("backend/api.py"),
+              Path("backend/main.py"),
+              Path("main.py"),
+              Path("app/main.py"),
+          ]
+
+          candidates = []
+          for p in preferred:
+              if p.exists():
+                  candidates.append(p)
+
+          for p in Path(".").rglob("*.py"):
+              if ".git" in p.parts or "__pycache__" in p.parts or ".venv" in p.parts or "venv" in p.parts:
+                  continue
+              if p.as_posix().startswith("backend/repair_agents/"):
+                  continue
+              if p not in candidates:
+                  candidates.append(p)
+
+          fastapi_file = None
+          text = ""
+
+          for p in candidates:
+              try:
+                  t = p.read_text(encoding="utf-8")
+              except UnicodeDecodeError:
+                  continue
+
+              if "FastAPI(" in t and ("app =" in t or "app=FastAPI" in t or "app = FastAPI" in t):
+                  fastapi_file = p
+                  text = t
+                  break
+
+          if fastapi_file is None:
+              raise SystemExit("BLOQUEO_REAL: No se encontró archivo principal FastAPI.")
+
+          router_imported = "repair_agents.router" in text and "repair_router" in text
+          router_included = "include_router" in text and "repair_router" in text and "/api/v1/repair" in text
+
+          print(f"FASTAPI_FILE={fastapi_file}")
+          print(f"ROUTER_IMPORTED={router_imported}")
+          print(f"ROUTER_INCLUDED={router_included}")
+
+          if not router_imported:
+              raise SystemExit("BLOQUEO_REAL: repair_router no está importado en FastAPI.")
+
+          if not router_included:
+              raise SystemExit("BLOQUEO_REAL: repair_router no está incluido con /api/v1/repair.")
+
+      - name: Docker compose build and start
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose version
+          docker compose config
+          docker compose up -d --build
+          docker compose ps
+
+      - name: Wait for backend health
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Esperando /health..."
+          for i in $(seq 1 50); do
+            if curl -fsS http://localhost:8000/health; then
+              echo ""
+              echo "HEALTH OK"
+              exit 0
+            fi
+            sleep 3
+          done
+
+          echo "BLOQUEO_REAL: /health no respondió."
+          docker compose ps
+          docker compose logs --tail=250
+          exit 1
+
+      - name: Test repair_agents endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "=== GET /api/v1/repair/logs ==="
+          curl -fsS http://localhost:8000/api/v1/repair/logs
+
+          echo ""
+          echo "=== POST /api/v1/repair/diagnose ==="
+          curl -fsS -X POST http://localhost:8000/api/v1/repair/diagnose
+
+          echo ""
+          echo "=== POST /api/v1/repair/propose-fix ==="
+          curl -fsS -X POST http://localhost:8000/api/v1/repair/propose-fix
+
+          echo ""
+          echo "=== POST /api/v1/repair/audit ==="
+          curl -fsS -X POST http://localhost:8000/api/v1/repair/audit
+
+          echo ""
+          echo "=== POST /api/v1/repair/apply-fix ==="
+          curl -fsS -X POST http://localhost:8000/api/v1/repair/apply-fix
+
+      - name: Final HBC3 status
+        run: |
+          echo "HBC3 FINAL TEST OK"
+          echo "repair_agents endpoints probados"
+          echo "VALIDADO EN TESTING"
+          echo "NO VALIDADO EN PRODUCCIÓN"
+
+      - name: Final logs
+        if: always()
+        shell: bash
+        run: |
+          docker compose ps || true
+          docker compose logs --tail=200 || true
