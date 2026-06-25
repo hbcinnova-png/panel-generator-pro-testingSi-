@@ -1,0 +1,23 @@
+{
+  "build_id": "hbc3-generator-v4-final-20260625-1",
+  "status": "PASS",
+  "checked_at": 1782423806,
+  "base": "http://127.0.0.1:10000",
+  "checks": {
+    "health": true,
+    "ready": true,
+    "generator_http": true,
+    "full_original_ui": true,
+    "assets": {
+      "styles.css": true,
+      "app.js": true,
+      "hbc3-final-patch.js": true,
+      "hbc3-final-hotfix.js": true
+    },
+    "save_http": true,
+    "save_id": true,
+    "public_view": true,
+    "zip_download": true
+  },
+  "error": null
+}
