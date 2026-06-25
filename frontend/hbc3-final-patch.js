@@ -15,11 +15,29 @@
   }
 
   function currentHtml() {
+    const frame = document.getElementById('previewFrame');
+    if (frame && frame.srcdoc) return frame.srcdoc;
     try {
       if (typeof generatePreviewHTML === 'function') return generatePreviewHTML();
     } catch (error) {}
+    return '';
+  }
+
+  function decoratePreview() {
     const frame = document.getElementById('previewFrame');
-    return frame ? (frame.srcdoc || '') : '';
+    if (!frame || !frame.srcdoc) return;
+    const phone = esc(formData.phone || formData.whatsapp || '');
+    const email = esc(formData.email || '');
+    const whatsapp = String(formData.whatsapp || formData.phone || '').replace(/\D/g, '');
+    const actions = `
+      <div class="actions" style="grid-template-columns:repeat(2,1fr)">
+        <button class="btn btn-primary" onclick="parent.postMessage({type:'hbc3-budget'},'*')">Presupuesto</button>
+        <a class="btn btn-secondary" href="https://wa.me/${whatsapp}" target="_blank" rel="noopener">WhatsApp</a>
+        <a class="btn btn-secondary" href="tel:${phone}">Llamar</a>
+        <a class="btn btn-secondary" href="mailto:${email}?subject=Solicitud%20de%20presupuesto">Email</a>
+      </div>`;
+    const updated = frame.srcdoc.replace(/<div class="actions">[\s\S]*?<\/div>\s*<div class="status">/, actions + '<div class="status">');
+    if (updated !== frame.srcdoc) frame.srcdoc = updated;
   }
 
   function selectedPlan() {
@@ -76,6 +94,7 @@
     }
     try {
       if (typeof updatePreview === 'function') updatePreview();
+      decoratePreview();
       const result = await save('generated');
       alert('Panel generado y guardado. ID: ' + result.id);
       if (typeof showNotice === 'function') showNotice('Guardado real. Puedes abrir la pantalla.', 'success');
@@ -171,24 +190,6 @@
     window.open('https://wa.me/' + number, '_blank', 'noopener');
   };
 
-  const originalPreview = window.generatePreviewHTML || (typeof generatePreviewHTML === 'function' ? generatePreviewHTML : null);
-  if (originalPreview) {
-    window.generatePreviewHTML = function () {
-      const html = originalPreview();
-      const phone = esc(formData.phone || formData.whatsapp || '');
-      const email = esc(formData.email || '');
-      const whatsapp = String(formData.whatsapp || formData.phone || '').replace(/\D/g, '');
-      const actions = `
-        <div class="actions" style="grid-template-columns:repeat(2,1fr)">
-          <button class="btn btn-primary" onclick="parent.postMessage({type:'hbc3-budget'},'*')">Presupuesto</button>
-          <a class="btn btn-secondary" href="https://wa.me/${whatsapp}" target="_blank" rel="noopener">WhatsApp</a>
-          <a class="btn btn-secondary" href="tel:${phone}">Llamar</a>
-          <a class="btn btn-secondary" href="mailto:${email}?subject=Solicitud%20de%20presupuesto">Email</a>
-        </div>`;
-      return html.replace(/<div class="actions">[\s\S]*?<\/div>\s*<div class="status">/, actions + '<div class="status">');
-    };
-  }
-
   window.addEventListener('message', function (event) {
     if (event && event.data && event.data.type === 'hbc3-budget') window.hbc3Budget();
   });
@@ -258,8 +259,16 @@
       button.onclick = function () { choosePlan(title.textContent.trim().toLowerCase()); };
     });
 
+    document.addEventListener('input', function () {
+      setTimeout(decoratePreview, 20);
+    }, true);
+    document.addEventListener('change', function () {
+      setTimeout(decoratePreview, 20);
+    }, true);
+
     setTimeout(function () {
       if (typeof updatePreview === 'function') updatePreview();
+      decoratePreview();
     }, 250);
   });
 })();
