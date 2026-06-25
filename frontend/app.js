@@ -1,8 +1,12 @@
-// ==================== GLOBAL STATE ====================
+// ==================== HBC3 AUTH + SCREEN GENERATOR FIX ====================
+// Objetivo: que la pantalla/vista previa funcione siempre y que la generación no falle
+// por Bearer null ni por payload incompatible con el backend.
 
+// ==================== GLOBAL STATE ====================
 let currentStep = 1;
 const totalSteps = 4;
-let formData = {
+
+const formData = {
     businessName: '',
     description: '',
     phone: '',
@@ -22,42 +26,60 @@ let formData = {
     api: {}
 };
 
-// ==================== CONFIGURATION ====================
-const API_URL = window.location.hostname === 'localhost' 
-    ? 'http://localhost:8000'
-    : window.location.origin.replace(/:\d+$/, ':8000');
+let authState = {
+    token: localStorage.getItem('token') || '',
+    user: safeJsonParse(localStorage.getItem('user')) || null
+};
 
+// ==================== CONFIGURATION ====================
+function resolveApiUrl() {
+    const saved = localStorage.getItem('api_url');
+    if (saved) return saved.replace(/\/$/, '');
+
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return 'http://localhost:8000';
+    }
+
+    // Codespaces / GitHub preview: if frontend is on 3000, backend is normally 8000.
+    if (window.location.hostname.includes('github.dev') || window.location.hostname.includes('app.github.dev')) {
+        return window.location.origin.replace(/-3000\./, '-8000.').replace(/:3000$/, ':8000');
+    }
+
+    // Same-origin fallback for normal deployment behind reverse proxy.
+    return window.location.origin;
+}
+
+const API_URL = resolveApiUrl();
 const API_BASE = `${API_URL}/api/v1`;
 
 // ==================== INITIALIZATION ====================
-
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('API URL:', API_BASE);
+    console.log('HBC3 API BASE:', API_BASE);
     initializeForm();
     setupEventListeners();
+    setupAuthUi();
+    updateAuthUi();
     updatePreview();
 });
 
 function initializeForm() {
-    // Mostrar primer paso
     showStep(1);
-    
-    // Inicializar temas
+
     document.querySelectorAll('.theme-option').forEach(option => {
         option.addEventListener('click', () => {
             document.querySelectorAll('.theme-option').forEach(o => o.classList.remove('selected'));
             option.classList.add('selected');
-            formData.theme = option.dataset.theme;
+            formData.theme = option.dataset.theme || 'doctor_piscinas';
+            updateThemeColors(formData.theme);
             updatePreview();
         });
     });
-    
-    // Marcar primer tema como seleccionado
-    document.querySelector('[data-theme="doctor_piscinas"]').classList.add('selected');
+
+    const defaultTheme = document.querySelector('[data-theme="doctor_piscinas"]');
+    if (defaultTheme) defaultTheme.classList.add('selected');
 }
 
 function setupEventListeners() {
-    // Servicios
     const serviceInput = document.getElementById('serviceInput');
     if (serviceInput) {
         serviceInput.addEventListener('keypress', (e) => {
@@ -68,142 +90,218 @@ function setupEventListeners() {
             }
         });
     }
-    
-    // Método de instalación
+
     document.querySelectorAll('input[name="installMethod"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
             formData.installMethod = e.target.value;
             updateInstallationFields();
+            updatePreview();
         });
     });
-    
-    // Colores
-    document.querySelector('input[name="colorPrimary"]').addEventListener('change', (e) => {
-        formData.colorPrimary = e.target.value;
-        updatePreview();
+
+    document.querySelectorAll('input[name="colorPrimary"], input[name="colorSecondary"]').forEach(input => {
+        input.addEventListener('change', (e) => {
+            formData[e.target.name] = e.target.value;
+            updatePreview();
+        });
     });
-    
-    document.querySelector('input[name="colorSecondary"]').addEventListener('change', (e) => {
-        formData.colorSecondary = e.target.value;
-        updatePreview();
-    });
-    
-    // Efectos
+
     document.querySelectorAll('input[name="effects"]').forEach(checkbox => {
         checkbox.addEventListener('change', (e) => {
             if (e.target.checked) {
-                if (!formData.effects.includes(e.target.value)) {
-                    formData.effects.push(e.target.value);
-                }
+                if (!formData.effects.includes(e.target.value)) formData.effects.push(e.target.value);
             } else {
                 formData.effects = formData.effects.filter(f => f !== e.target.value);
             }
             updatePreview();
         });
     });
-    
-    // Integraciones
+
     document.querySelectorAll('input[name="integrations"]').forEach(checkbox => {
         checkbox.addEventListener('change', (e) => {
             if (e.target.checked) {
-                if (!formData.integrations.includes(e.target.value)) {
-                    formData.integrations.push(e.target.value);
-                }
+                if (!formData.integrations.includes(e.target.value)) formData.integrations.push(e.target.value);
             } else {
                 formData.integrations = formData.integrations.filter(i => i !== e.target.value);
             }
             updatePreview();
         });
     });
-    
-    // Form submit
-    document.getElementById('panelForm').addEventListener('submit', (e) => {
-        e.preventDefault();
-        submitForm();
-    });
+
+    const form = document.getElementById('panelForm');
+    if (form) {
+        form.addEventListener('input', debounce(() => {
+            updateFormData(false);
+            updatePreview();
+        }, 150));
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            submitForm();
+        });
+    }
+}
+
+// ==================== AUTH UI ====================
+function setupAuthUi() {
+    const loginBtn = document.querySelector('.btn-login');
+    if (loginBtn) {
+        loginBtn.type = 'button';
+        loginBtn.addEventListener('click', openAuthModal);
+    }
+
+    if (!document.getElementById('authModal')) {
+        const modal = document.createElement('div');
+        modal.id = 'authModal';
+        modal.className = 'hbc3-auth-modal hidden';
+        modal.innerHTML = `
+            <div class="hbc3-auth-card">
+                <button type="button" class="hbc3-auth-close" onclick="closeAuthModal()">×</button>
+                <h3>Acceso HBC3</h3>
+                <p>Inicia sesión para guardar el panel en backend. Sin acceso, la pantalla se genera localmente.</p>
+                <label>Email</label>
+                <input id="authEmail" type="email" placeholder="correo@empresa.com" autocomplete="email">
+                <label>Contraseña</label>
+                <input id="authPassword" type="password" placeholder="Contraseña" autocomplete="current-password">
+                <div class="hbc3-auth-actions">
+                    <button type="button" class="btn btn-primary" onclick="loginUser()">Entrar</button>
+                    <button type="button" class="btn btn-secondary" onclick="logoutUser()">Salir</button>
+                </div>
+                <div id="authStatus" class="hbc3-auth-status"></div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        const style = document.createElement('style');
+        style.textContent = `
+            .hidden{display:none!important;}
+            .hbc3-auth-modal{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:20px;}
+            .hbc3-auth-card{width:100%;max-width:420px;background:#fff;border-radius:18px;padding:24px;box-shadow:0 24px 80px rgba(0,0,0,.35);position:relative;}
+            .hbc3-auth-card h3{margin-bottom:10px;}
+            .hbc3-auth-card p{margin-bottom:18px;color:#555;}
+            .hbc3-auth-card label{display:block;margin:12px 0 6px;font-weight:700;}
+            .hbc3-auth-card input{width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;}
+            .hbc3-auth-close{position:absolute;top:12px;right:14px;border:none;background:transparent;font-size:28px;cursor:pointer;}
+            .hbc3-auth-actions{display:flex;gap:10px;margin-top:18px;}
+            .hbc3-auth-status{margin-top:12px;font-size:13px;color:#555;}
+        `;
+        document.head.appendChild(style);
+    }
+}
+
+function openAuthModal() {
+    document.getElementById('authModal')?.classList.remove('hidden');
+}
+
+function closeAuthModal() {
+    document.getElementById('authModal')?.classList.add('hidden');
+}
+
+async function loginUser() {
+    const email = document.getElementById('authEmail')?.value?.trim();
+    const password = document.getElementById('authPassword')?.value || '';
+    const status = document.getElementById('authStatus');
+
+    if (!email || !password) {
+        if (status) status.textContent = 'Completa email y contraseña.';
+        return;
+    }
+
+    try {
+        if (status) status.textContent = 'Conectando...';
+        const response = await fetch(`${API_BASE}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+
+        const data = await safeJson(response);
+        if (!response.ok || !data?.access_token) {
+            throw new Error(data?.detail || 'No se pudo iniciar sesión');
+        }
+
+        authState.token = data.access_token;
+        authState.user = data.user || null;
+        localStorage.setItem('token', authState.token);
+        localStorage.setItem('user', JSON.stringify(authState.user));
+        updateAuthUi();
+        closeAuthModal();
+        showNotice('Sesión iniciada. Ahora el panel se guardará en backend.', 'success');
+    } catch (error) {
+        if (status) status.textContent = `Error: ${error.message}`;
+    }
+}
+
+function logoutUser() {
+    authState.token = '';
+    authState.user = null;
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    updateAuthUi();
+    showNotice('Sesión cerrada. Se usará generación local de pantalla.', 'info');
+}
+
+function updateAuthUi() {
+    const loginBtn = document.querySelector('.btn-login');
+    if (!loginBtn) return;
+    loginBtn.textContent = authState.token ? 'Sesión activa' : 'Iniciar Sesión';
+    loginBtn.classList.toggle('is-authenticated', !!authState.token);
 }
 
 // ==================== FORM NAVIGATION ====================
-
 function showStep(step) {
-    // Ocultar todos los pasos
     document.querySelectorAll('.form-step').forEach(s => s.classList.remove('active'));
-    
-    // Mostrar paso actual
-    document.querySelector(`[data-step="${step}"]`).classList.add('active');
-    
-    // Actualizar botones
+    const target = document.querySelector(`[data-step="${step}"]`);
+    if (target) target.classList.add('active');
+
     const prevBtn = document.getElementById('prevBtn');
     const nextBtn = document.getElementById('nextBtn');
     const submitBtn = document.getElementById('submitBtn');
-    
-    if (step === 1) {
-        prevBtn.style.display = 'none';
-    } else {
-        prevBtn.style.display = 'block';
-    }
-    
-    if (step === totalSteps) {
-        nextBtn.style.display = 'none';
-        submitBtn.style.display = 'block';
-    } else {
-        nextBtn.style.display = 'block';
-        submitBtn.style.display = 'none';
-    }
-    
+
+    if (prevBtn) prevBtn.style.display = step === 1 ? 'none' : 'block';
+    if (nextBtn) nextBtn.style.display = step === totalSteps ? 'none' : 'block';
+    if (submitBtn) submitBtn.style.display = step === totalSteps ? 'block' : 'none';
+
     currentStep = step;
-    updateFormData();
+    updateFormData(false);
 }
 
 function nextStep() {
-    if (validateStep(currentStep)) {
-        if (currentStep < totalSteps) {
-            showStep(currentStep + 1);
-        }
-    }
+    if (validateStep(currentStep) && currentStep < totalSteps) showStep(currentStep + 1);
 }
 
 function previousStep() {
-    if (currentStep > 1) {
-        showStep(currentStep - 1);
-    }
+    if (currentStep > 1) showStep(currentStep - 1);
 }
 
 function validateStep(step) {
     const form = document.getElementById('panelForm');
+    if (!form) return true;
+
     const inputs = form.querySelectorAll(`[data-step="${step}"] input[required], [data-step="${step}"] textarea[required]`);
-    
-    for (let input of inputs) {
+    for (const input of inputs) {
         if (!input.value.trim()) {
             input.focus();
             input.style.borderColor = '#ff0000';
-            setTimeout(() => {
-                input.style.borderColor = '';
-            }, 2000);
+            setTimeout(() => input.style.borderColor = '', 2000);
             return false;
         }
     }
-    
     return true;
 }
 
 // ==================== FORM DATA ====================
-
-function updateFormData() {
+function updateFormData(refreshPreview = true) {
     const form = document.getElementById('panelForm');
-    
-    // Paso 1: Información básica
+    if (!form) return;
+
     formData.businessName = form.querySelector('input[name="businessName"]')?.value || '';
     formData.description = form.querySelector('textarea[name="description"]')?.value || '';
     formData.phone = form.querySelector('input[name="phone"]')?.value || '';
     formData.email = form.querySelector('input[name="email"]')?.value || '';
     formData.website = form.querySelector('input[name="website"]')?.value || '';
-    
-    // Paso 2: Diseño
     formData.colorPrimary = form.querySelector('input[name="colorPrimary"]')?.value || '#ff006e';
     formData.colorSecondary = form.querySelector('input[name="colorSecondary"]')?.value || '#00d9ff';
-    
-    // Paso 3: Integraciones
     formData.whatsapp = form.querySelector('input[name="whatsapp"]')?.value || '';
     formData.social = {
         facebook: form.querySelector('input[name="facebook"]')?.value || '',
@@ -211,19 +309,17 @@ function updateFormData() {
         twitter: form.querySelector('input[name="twitter"]')?.value || '',
         linkedin: form.querySelector('input[name="linkedin"]')?.value || ''
     };
-    
-    // Paso 4: Instalación
     formData.installMethod = form.querySelector('input[name="installMethod"]:checked')?.value || 'zip';
-    
-    updatePreview();
+
+    if (refreshPreview) updatePreview();
 }
 
 function addService(service) {
-    if (service.trim()) {
-        formData.services.push(service);
-        renderServices();
-        updatePreview();
-    }
+    const clean = String(service || '').trim();
+    if (!clean) return;
+    formData.services.push(clean);
+    renderServices();
+    updatePreview();
 }
 
 function removeService(index) {
@@ -234,9 +330,10 @@ function removeService(index) {
 
 function renderServices() {
     const list = document.getElementById('servicesList');
+    if (!list) return;
     list.innerHTML = formData.services.map((service, index) => `
         <div class="service-tag">
-            ${service}
+            ${escapeHtml(service)}
             <button type="button" onclick="removeService(${index})">×</button>
         </div>
     `).join('');
@@ -245,27 +342,88 @@ function renderServices() {
 function updateInstallationFields() {
     const ftpFields = document.getElementById('ftpFields');
     const apiFields = document.getElementById('apiFields');
-    
-    ftpFields.classList.add('hidden');
-    apiFields.classList.add('hidden');
-    
-    if (formData.installMethod === 'ftp') {
-        ftpFields.classList.remove('hidden');
-    } else if (formData.installMethod === 'api' || formData.installMethod === 'oauth') {
-        apiFields.classList.remove('hidden');
-    }
+    if (ftpFields) ftpFields.classList.add('hidden');
+    if (apiFields) apiFields.classList.add('hidden');
+
+    if (formData.installMethod === 'ftp') ftpFields?.classList.remove('hidden');
+    if (['api', 'oauth'].includes(formData.installMethod)) apiFields?.classList.remove('hidden');
+}
+
+function updateThemeColors(theme) {
+    const colors = getThemeColors(theme);
+    formData.colorPrimary = colors.primary;
+    formData.colorSecondary = colors.secondary;
+
+    const primaryInput = document.querySelector('input[name="colorPrimary"]');
+    const secondaryInput = document.querySelector('input[name="colorSecondary"]');
+    if (primaryInput) primaryInput.value = colors.primary;
+    if (secondaryInput) secondaryInput.value = colors.secondary;
 }
 
 // ==================== PREVIEW ====================
-
 function updatePreview() {
     const previewFrame = document.getElementById('previewFrame');
-    const previewHTML = generatePreviewHTML();
-    
-    previewFrame.srcdoc = previewHTML;
+    if (!previewFrame) return;
+    previewFrame.srcdoc = generatePreviewHTML();
 }
 
 function generatePreviewHTML() {
+    const themeColors = getThemeColors(formData.theme);
+    const services = formData.services.length ? formData.services : ['Servicio principal', 'Presupuesto rápido', 'Contacto directo', 'Panel privado'];
+    const primaryRgb = hexToRgb(themeColors.primary).join(',');
+    const secondaryRgb = hexToRgb(themeColors.secondary).join(',');
+    const title = escapeHtml(formData.businessName || 'Tu Negocio');
+    const description = escapeHtml(formData.description || 'Pantalla premium generada por HBC3');
+    const phone = escapeHtml(formData.phone || formData.whatsapp || '+34 XXX XXX XXX');
+
+    return `<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:Inter,Arial,sans-serif;min-height:100vh;background:radial-gradient(circle at 20% 20%,rgba(${primaryRgb},.35),transparent 28%),radial-gradient(circle at 90% 10%,rgba(${secondaryRgb},.28),transparent 30%),linear-gradient(135deg,#071018,#101827 55%,#02040a);color:#fff;display:flex;align-items:center;justify-content:center;padding:22px;overflow:hidden}
+        .water{position:fixed;inset:auto -10% -25% -10%;height:45vh;background:linear-gradient(180deg,rgba(${secondaryRgb},.02),rgba(${secondaryRgb},.22));filter:blur(1px);animation:wave 7s ease-in-out infinite alternate;border-radius:50% 50% 0 0}
+        .panel{position:relative;width:min(560px,100%);padding:34px;border-radius:28px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.20);box-shadow:0 24px 90px rgba(0,0,0,.45),0 0 60px rgba(${primaryRgb},.18);backdrop-filter:blur(18px);overflow:hidden}
+        .panel:before{content:'';position:absolute;inset:-2px;background:linear-gradient(135deg,rgba(${primaryRgb},.7),transparent 40%,rgba(${secondaryRgb},.6));opacity:.25;z-index:-1}
+        .badge{display:inline-flex;gap:8px;align-items:center;padding:8px 12px;border-radius:999px;background:rgba(${primaryRgb},.15);border:1px solid rgba(${primaryRgb},.45);font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:18px}
+        .title{font-size:clamp(30px,7vw,48px);line-height:1;font-weight:900;letter-spacing:-.04em;background:linear-gradient(135deg,#fff,${themeColors.secondary});-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:14px}
+        .desc{font-size:15px;line-height:1.55;color:rgba(255,255,255,.78);margin-bottom:24px}
+        .services{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:24px 0}
+        .service{padding:14px 12px;border-radius:16px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);font-weight:800;font-size:13px;text-align:center;box-shadow:inset 0 0 20px rgba(${secondaryRgb},.05)}
+        .actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:24px}
+        .btn{border:none;border-radius:16px;padding:15px 14px;font-weight:900;cursor:pointer;font-size:14px;text-decoration:none;text-align:center;color:#fff}
+        .btn-primary{background:linear-gradient(135deg,${themeColors.primary},${themeColors.secondary});box-shadow:0 12px 30px rgba(${primaryRgb},.35)}
+        .btn-secondary{background:rgba(255,255,255,.08);border:1px solid rgba(${secondaryRgb},.55);color:${themeColors.secondary}}
+        .status{margin-top:20px;color:#6aff9d;font-size:12px;font-weight:800;display:flex;gap:8px;align-items:center;justify-content:center}
+        .dot{width:8px;height:8px;background:#6aff9d;border-radius:50%;box-shadow:0 0 18px #6aff9d;animation:pulse 1.4s infinite}
+        @keyframes pulse{50%{opacity:.35;transform:scale(.78)}}
+        @keyframes wave{from{transform:translateY(0) rotate(-1deg)}to{transform:translateY(-18px) rotate(1deg)}}
+        @media(max-width:480px){.panel{padding:24px}.services,.actions{grid-template-columns:1fr}.title{font-size:34px}}
+    </style>
+</head>
+<body>
+    <div class="water"></div>
+    <main class="panel">
+        <div class="badge">HBC3 · Pantalla activa</div>
+        <h1 class="title">${title}</h1>
+        <p class="desc">${description}</p>
+        <section class="services">
+            ${services.slice(0, 4).map(s => `<div class="service">${escapeHtml(s)}</div>`).join('')}
+        </section>
+        <div class="actions">
+            <a class="btn btn-primary" href="mailto:${encodeURIComponent(formData.email || '')}">Presupuesto</a>
+            <a class="btn btn-secondary" href="https://wa.me/${normalizePhone(formData.whatsapp || formData.phone)}" target="_blank" rel="noopener">WhatsApp</a>
+        </div>
+        <div class="status"><span class="dot"></span> Sistema Online · ${phone}</div>
+    </main>
+</body>
+</html>`;
+}
+
+function getThemeColors(theme) {
     const colors = {
         doctor_piscinas: { primary: '#ff006e', secondary: '#00d9ff' },
         tech_future: { primary: '#00d9ff', secondary: '#a000ff' },
@@ -273,226 +431,175 @@ function generatePreviewHTML() {
         nature_green: { primary: '#00aa44', secondary: '#8b7355' },
         gaming_neon: { primary: '#ff00ff', secondary: '#00ffff' }
     };
-    
-    const themeColors = colors[formData.theme] || colors.doctor_piscinas;
-    
-    return `
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Preview</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #0d0d0d 0%, #1a1a1a 100%);
-            color: white;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        
-        .panel {
-            width: 100%;
-            max-width: 500px;
-            background: rgba(20, 20, 20, 0.8);
-            border: 2px solid;
-            border-image: linear-gradient(135deg, ${themeColors.primary} 0%, ${themeColors.secondary} 100%) 1;
-            border-radius: 16px;
-            padding: 40px;
-            box-shadow: 0 0 40px rgba(${hexToRgb(themeColors.primary).join(',')}, 0.3);
-            backdrop-filter: blur(10px);
-        }
-        
-        .panel-header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        
-        .panel-title {
-            font-size: 28px;
-            font-weight: 700;
-            margin-bottom: 8px;
-            background: linear-gradient(135deg, ${themeColors.primary} 0%, ${themeColors.secondary} 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        
-        .panel-description {
-            font-size: 14px;
-            color: #aaa;
-        }
-        
-        .services {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 30px;
-        }
-        
-        .service-item {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(${hexToRgb(themeColors.primary).join(',')}, 0.3);
-            border-radius: 8px;
-            padding: 12px;
-            text-align: center;
-            font-size: 12px;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        
-        .service-item:hover {
-            background: rgba(${hexToRgb(themeColors.primary).join(',')}, 0.1);
-            border-color: ${themeColors.primary};
-            transform: translateY(-2px);
-        }
-        
-        .buttons {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-        
-        .btn {
-            padding: 12px;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.3s ease;
-        }
-        
-        .btn-primary {
-            background: linear-gradient(135deg, ${themeColors.primary} 0%, ${themeColors.secondary} 100%);
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(${hexToRgb(themeColors.primary).join(',')}, 0.4);
-        }
-        
-        .btn-secondary {
-            background: rgba(${hexToRgb(themeColors.secondary).join(',')}, 0.2);
-            color: ${themeColors.secondary};
-            border: 1px solid ${themeColors.secondary};
-        }
-        
-        .btn-secondary:hover {
-            background: rgba(${hexToRgb(themeColors.secondary).join(',')}, 0.3);
-        }
-        
-        .status {
-            text-align: center;
-            margin-top: 20px;
-            font-size: 12px;
-            color: #00aa44;
-        }
-        
-        .status::before {
-            content: '●';
-            margin-right: 6px;
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-    </style>
-</head>
-<body>
-    <div class="panel">
-        <div class="panel-header">
-            <div class="panel-title">${formData.businessName || 'Tu Negocio'}</div>
-            <div class="panel-description">${formData.description || 'Descripción del negocio'}</div>
-        </div>
-        
-        ${formData.services.length > 0 ? `
-            <div class="services">
-                ${formData.services.slice(0, 4).map(s => `<div class="service-item">${s}</div>`).join('')}
-            </div>
-        ` : ''}
-        
-        <div class="buttons">
-            <button class="btn btn-primary">Presupuesto</button>
-            <button class="btn btn-secondary">WhatsApp</button>
-        </div>
-        
-        <div class="status">Sistema Online</div>
-    </div>
-</body>
-</html>
-    `;
+    return colors[theme] || colors.doctor_piscinas;
 }
 
 function hexToRgb(hex) {
-    const result = /^#?([a-f\\d]{2})([a-f\\d]{2})([a-f\\d]{2})$/i.exec(hex);
-    return result ? [
-        parseInt(result[1], 16),
-        parseInt(result[2], 16),
-        parseInt(result[3], 16)
-    ] : [0, 0, 0];
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || '');
+    return result ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)] : [0, 0, 0];
 }
 
 // ==================== FORM SUBMISSION ====================
-
 async function submitForm() {
-    updateFormData();
-    
-    // Validar datos
+    updateFormData(false);
+
     if (!formData.businessName || !formData.email) {
-        alert('Por favor completa todos los campos requeridos');
+        showNotice('Completa nombre del negocio y email.', 'error');
         return;
     }
-    
-    // Mostrar loading
+
     const submitBtn = document.getElementById('submitBtn');
-    const originalText = submitBtn.textContent;
-    submitBtn.textContent = 'Generando...';
-    submitBtn.disabled = true;
-    
+    const originalText = submitBtn?.textContent || 'Generar Panel';
+    if (submitBtn) {
+        submitBtn.textContent = 'Generando...';
+        submitBtn.disabled = true;
+    }
+
     try {
-        // Enviar al backend
+        if (!authState.token) {
+            const localPanel = createLocalPanel();
+            showNotice('Pantalla generada en modo local. Inicia sesión para guardarla en backend.', 'success');
+            openGeneratedPanel(localPanel.html);
+            return;
+        }
+
+        const payload = buildBackendPayload();
         const response = await fetch(`${API_BASE}/panels`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`
+                'Authorization': `Bearer ${authState.token}`
             },
-            body: JSON.stringify(formData)
+            body: JSON.stringify(payload)
         });
-        
-        if (response.ok) {
-            const data = await response.json();
-            alert('¡Panel generado exitosamente!');
-            window.location.href = `/dashboard?id=${data.id}`;
-        } else {
-            const errorData = await response.json();
-            alert(`Error: ${errorData.detail || 'Error al generar el panel'}`);
+
+        const data = await safeJson(response);
+        if (!response.ok) {
+            if (response.status === 401 || response.status === 403) {
+                logoutUser();
+                const localPanel = createLocalPanel();
+                showNotice('Sesión caducada. Pantalla generada en modo local.', 'error');
+                openGeneratedPanel(localPanel.html);
+                return;
+            }
+            throw new Error(data?.detail || 'Error al generar el panel');
+        }
+
+        showNotice('Panel guardado en backend correctamente.', 'success');
+        if (data?.id) {
+            window.location.href = `/dashboard?id=${encodeURIComponent(data.id)}`;
         }
     } catch (error) {
-        console.error('Error:', error);
-        alert(`Error: ${error.message}. Verifica que el backend esté disponible en ${API_BASE}`);
+        console.error('HBC3 generation error:', error);
+        const localPanel = createLocalPanel();
+        showNotice(`Backend no disponible. Pantalla generada localmente.`, 'error');
+        openGeneratedPanel(localPanel.html);
     } finally {
-        submitBtn.textContent = originalText;
-        submitBtn.disabled = false;
+        if (submitBtn) {
+            submitBtn.textContent = originalText;
+            submitBtn.disabled = false;
+        }
     }
 }
 
-// ==================== UTILITIES ====================
-
-function scrollToForm() {
-    document.querySelector('.form-section').scrollIntoView({ behavior: 'smooth' });
+function buildBackendPayload() {
+    return {
+        name: formData.businessName,
+        description: formData.description,
+        business_name: formData.businessName,
+        business_phone: formData.phone,
+        business_email: formData.email,
+        business_website: formData.website || null,
+        logo_url: null,
+        theme: formData.theme,
+        colors: {
+            primary: formData.colorPrimary,
+            secondary: formData.colorSecondary
+        },
+        services: formData.services.map(name => ({ name })),
+        social_links: formData.social || {},
+        integrations: buildIntegrationsPayload()
+    };
 }
+
+function buildIntegrationsPayload() {
+    const integrations = {};
+    formData.integrations.forEach(name => {
+        integrations[name] = { enabled: true };
+    });
+    if (formData.whatsapp) integrations.whatsapp = { enabled: true, phone: formData.whatsapp };
+    return integrations;
+}
+
+function createLocalPanel() {
+    const html = generatePreviewHTML();
+    const id = `local-${Date.now()}`;
+    localStorage.setItem(`panel-${id}`, JSON.stringify({ id, createdAt: new Date().toISOString(), data: formData, html }));
+    return { id, html };
+}
+
+function openGeneratedPanel(html) {
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+// ==================== UTILITIES ====================
+function scrollToForm() {
+    document.querySelector('.form-section')?.scrollIntoView({ behavior: 'smooth' });
+}
+
+function safeJsonParse(value) {
+    try { return value ? JSON.parse(value) : null; } catch { return null; }
+}
+
+async function safeJson(response) {
+    try { return await response.json(); } catch { return null; }
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function normalizePhone(phone) {
+    const clean = String(phone || '').replace(/[^0-9]/g, '');
+    return clean || '34000000000';
+}
+
+function debounce(fn, wait) {
+    let timer;
+    return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), wait);
+    };
+}
+
+function showNotice(message, type = 'info') {
+    let notice = document.getElementById('hbc3Notice');
+    if (!notice) {
+        notice = document.createElement('div');
+        notice.id = 'hbc3Notice';
+        notice.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:10000;max-width:92vw;padding:14px 18px;border-radius:14px;color:#fff;font-weight:800;box-shadow:0 14px 40px rgba(0,0,0,.25);transition:.25s;';
+        document.body.appendChild(notice);
+    }
+    const colors = { success: '#00aa44', error: '#d93025', info: '#2563eb' };
+    notice.style.background = colors[type] || colors.info;
+    notice.textContent = message;
+    notice.style.opacity = '1';
+    setTimeout(() => { notice.style.opacity = '0'; }, 4500);
+}
+
+// Public functions used by inline HTML handlers
+window.nextStep = nextStep;
+window.previousStep = previousStep;
+window.removeService = removeService;
+window.scrollToForm = scrollToForm;
+window.loginUser = loginUser;
+window.logoutUser = logoutUser;
+window.closeAuthModal = closeAuthModal;
