@@ -1,7 +1,8 @@
 // HBC3 FINAL FUNCTIONAL PATCH
 (function () {
   const SAVE_URL = '/generator/save';
-  const LIST_URL = '/generator/requests';
+  const STORAGE_KEY = 'hbc3_saved_records';
+  let lastViewUrl = '';
 
   function esc(value) {
     return String(value || '').replace(/[&<>"']/g, function (char) {
@@ -21,6 +22,23 @@
     return frame ? (frame.srcdoc || '') : '';
   }
 
+  function selectedPlan() {
+    return localStorage.getItem('hbc3_selected_plan') || 'free';
+  }
+
+  function remember(result, type) {
+    const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    records.unshift({
+      id: result.id,
+      type: type,
+      name: formData.businessName || '',
+      view_url: result.view_url || '',
+      saved_at: new Date().toLocaleString()
+    });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(records.slice(0, 25)));
+    lastViewUrl = result.view_url || lastViewUrl;
+  }
+
   async function save(type) {
     updateAll();
     const payload = {
@@ -30,7 +48,8 @@
       email: formData.email || '',
       description: formData.description || '',
       services: Array.isArray(formData.services) ? formData.services.join('\n') : '',
-      html: currentHtml()
+      html: currentHtml(),
+      plan: selectedPlan()
     };
     const response = await fetch(SAVE_URL, {
       method: 'POST',
@@ -39,6 +58,7 @@
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail ? JSON.stringify(data.detail) : 'Error de guardado');
+    remember(data, type);
     return data;
   }
 
@@ -58,7 +78,7 @@
       if (typeof updatePreview === 'function') updatePreview();
       const result = await save('generated');
       alert('Panel generado y guardado. ID: ' + result.id);
-      if (typeof showNotice === 'function') showNotice('Guardado real: ' + result.path, 'success');
+      if (typeof showNotice === 'function') showNotice('Guardado real. Puedes abrir la pantalla.', 'success');
     } catch (error) {
       alert('No se pudo guardar: ' + error.message);
     } finally {
@@ -78,7 +98,7 @@
     try {
       const result = await save('budget');
       alert('Presupuesto registrado. ID: ' + result.id);
-      if (typeof showNotice === 'function') showNotice('Presupuesto: ' + result.path, 'success');
+      if (typeof showNotice === 'function') showNotice('Presupuesto guardado con evidencia.', 'success');
     } catch (error) {
       alert('No se pudo registrar el presupuesto: ' + error.message);
     }
@@ -98,25 +118,37 @@
     if (typeof showNotice === 'function') showNotice('HTML descargado.', 'success');
   };
 
-  window.hbc3List = async function () {
-    try {
-      const response = await fetch(LIST_URL);
-      const data = await response.json();
-      if (!response.ok) throw new Error(JSON.stringify(data));
-      const rows = (data.items || []).slice(0, 10).map(function (item) {
-        return '<li><strong>' + esc(item.type) + '</strong> · ' + esc(item.name) + ' · ' + esc(item.phone || item.email) + '</li>';
-      }).join('');
-      let modal = document.getElementById('hbc3SavedModal');
-      if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'hbc3SavedModal';
-        modal.className = 'hbc3-auth-modal';
-        document.body.appendChild(modal);
-      }
-      modal.innerHTML = '<div class="hbc3-auth-card"><button type="button" class="hbc3-auth-close" onclick="document.getElementById(\'hbc3SavedModal\').remove()">×</button><h3>Últimos guardados</h3><ul>' + (rows || '<li>No hay registros.</li>') + '</ul></div>';
-    } catch (error) {
-      alert('No se pudieron leer los guardados: ' + error.message);
+  window.hbc3OpenPanel = function () {
+    if (lastViewUrl) {
+      window.open(lastViewUrl, '_blank', 'noopener');
+      return;
     }
+    const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    if (records[0] && records[0].view_url) {
+      window.open(records[0].view_url, '_blank', 'noopener');
+      return;
+    }
+    const html = currentHtml();
+    const blob = new Blob([html], {type: 'text/html'});
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener');
+    setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+  };
+
+  window.hbc3List = function () {
+    const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const rows = records.map(function (item) {
+      const link = item.view_url ? '<a href="' + esc(item.view_url) + '" target="_blank" rel="noopener">Abrir</a>' : '';
+      return '<li><strong>' + esc(item.type) + '</strong> · ' + esc(item.name) + ' · ' + esc(item.saved_at) + ' ' + link + '</li>';
+    }).join('');
+    let modal = document.getElementById('hbc3SavedModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'hbc3SavedModal';
+      modal.className = 'hbc3-auth-modal';
+      document.body.appendChild(modal);
+    }
+    modal.innerHTML = '<div class="hbc3-auth-card"><button type="button" class="hbc3-auth-close" onclick="document.getElementById(\'hbc3SavedModal\').remove()">×</button><h3>Guardados reales</h3><p>Los datos están almacenados en backend. Esta lista recuerda tus enlaces en este navegador.</p><ul>' + (rows || '<li>No hay registros todavía.</li>') + '</ul></div>';
   };
 
   window.hbc3Call = function () {
@@ -161,12 +193,36 @@
     if (event && event.data && event.data.type === 'hbc3-budget') window.hbc3Budget();
   });
 
+  function choosePlan(name) {
+    localStorage.setItem('hbc3_selected_plan', name);
+    if (typeof showNotice === 'function') showNotice('Plan seleccionado: ' + name, 'success');
+    const form = document.querySelector('.form-section');
+    if (form) form.scrollIntoView({behavior: 'smooth'});
+  }
+
+  function showDocs(event) {
+    if (event) event.preventDefault();
+    let modal = document.getElementById('hbc3DocsModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'hbc3DocsModal';
+      modal.className = 'hbc3-auth-modal';
+      document.body.appendChild(modal);
+    }
+    modal.innerHTML = '<div class="hbc3-auth-card"><button type="button" class="hbc3-auth-close" onclick="document.getElementById(\'hbc3DocsModal\').remove()">×</button><h3>Documentación</h3><ol><li>Completa el negocio.</li><li>Elige tema y servicios.</li><li>Genera y guarda.</li><li>Descarga HTML o abre la pantalla pública.</li></ol></div>';
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('input[name="phone"], input[name="email"]').forEach(function (input) {
+      input.removeAttribute('required');
+    });
+
     const nav = document.querySelector('.form-navigation');
     if (nav && !document.getElementById('hbc3BudgetBtn')) {
       const buttons = [
         ['hbc3BudgetBtn', 'Guardar Presupuesto', window.hbc3Budget, 'btn btn-primary'],
         ['hbc3DownloadBtn', 'Descargar HTML', window.hbc3Download, 'btn btn-secondary'],
+        ['hbc3OpenBtn', 'Abrir Pantalla', window.hbc3OpenPanel, 'btn btn-secondary'],
         ['hbc3ListBtn', 'Ver Guardados', window.hbc3List, 'btn btn-secondary']
       ];
       buttons.forEach(function (config) {
@@ -180,13 +236,27 @@
       });
     }
 
-    const login = document.querySelector('.btn-login');
-    if (login) {
-      const clone = login.cloneNode(true);
-      clone.textContent = 'Ver Guardados';
-      clone.onclick = window.hbc3List;
-      login.replaceWith(clone);
+    const headerNav = document.querySelector('.nav');
+    if (headerNav && !document.getElementById('hbc3SavedNav')) {
+      const saved = document.createElement('button');
+      saved.type = 'button';
+      saved.id = 'hbc3SavedNav';
+      saved.className = 'btn btn-login';
+      saved.textContent = 'Ver Guardados';
+      saved.onclick = window.hbc3List;
+      headerNav.appendChild(saved);
     }
+
+    const docs = document.querySelector('a[href="#docs"]');
+    if (docs) docs.addEventListener('click', showDocs);
+
+    document.querySelectorAll('.pricing-card').forEach(function (card) {
+      const title = card.querySelector('h3');
+      const button = card.querySelector('button');
+      if (!title || !button) return;
+      button.type = 'button';
+      button.onclick = function () { choosePlan(title.textContent.trim().toLowerCase()); };
+    });
 
     setTimeout(function () {
       if (typeof updatePreview === 'function') updatePreview();
