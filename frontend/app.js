@@ -4,6 +4,7 @@
 // - supports localStorage API_BASE/api_url overrides
 // - never sends Authorization: Bearer null
 // - sends integrations with string values compatible with backend/api.py Pydantic schema
+// - respects integration checkbox opt-in
 
 let currentStep = 1;
 const totalSteps = 4;
@@ -49,17 +50,13 @@ function resolveApiOrigin() {
 
     const { protocol, hostname, origin } = window.location;
 
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return 'http://localhost:8000';
-    }
+    if (hostname === 'localhost' || hostname === '127.0.0.1') return 'http://localhost:8000';
 
     if (hostname.includes('github.dev') || hostname.includes('app.github.dev')) {
         return origin.replace(/-3000\./, '-8000.').replace(/:3000$/, ':8000');
     }
 
-    if (window.location.port === '3000') {
-        return `${protocol}//${hostname}:8000`;
-    }
+    if (window.location.port === '3000') return `${protocol}//${hostname}:8000`;
 
     return origin;
 }
@@ -91,14 +88,13 @@ function initializeForm() {
         });
     });
 
-    const defaultTheme = document.querySelector('[data-theme="doctor_piscinas"]');
-    if (defaultTheme) defaultTheme.classList.add('selected');
+    document.querySelector('[data-theme="doctor_piscinas"]')?.classList.add('selected');
 }
 
 function setupEventListeners() {
     const serviceInput = document.getElementById('serviceInput');
     if (serviceInput) {
-        serviceInput.addEventListener('keypress', (event) => {
+        serviceInput.addEventListener('keypress', event => {
             if (event.key === 'Enter') {
                 event.preventDefault();
                 addService(serviceInput.value);
@@ -108,21 +104,14 @@ function setupEventListeners() {
     }
 
     document.querySelectorAll('input[name="installMethod"]').forEach(radio => {
-        radio.addEventListener('change', (event) => {
+        radio.addEventListener('change', event => {
             formData.installMethod = event.target.value;
             updateInstallationFields();
             updatePreview();
         });
     });
 
-    document.querySelectorAll('input[name="colorPrimary"], input[name="colorSecondary"]').forEach(input => {
-        input.addEventListener('change', (event) => {
-            formData[event.target.name] = event.target.value;
-            updatePreview();
-        });
-    });
-
-    document.querySelectorAll('input[name="effects"], input[name="integrations"]').forEach(input => {
+    document.querySelectorAll('input[name="colorPrimary"], input[name="colorSecondary"], input[name="effects"], input[name="integrations"]').forEach(input => {
         input.addEventListener('change', () => {
             updateFormData(false);
             updatePreview();
@@ -136,7 +125,7 @@ function setupEventListeners() {
             updatePreview();
         }, 150));
 
-        form.addEventListener('submit', (event) => {
+        form.addEventListener('submit', event => {
             event.preventDefault();
             submitForm();
         });
@@ -216,9 +205,7 @@ async function loginUser() {
         });
 
         const data = await safeJson(response);
-        if (!response.ok || !data?.access_token) {
-            throw new Error(data?.detail || 'No se pudo iniciar sesión');
-        }
+        if (!response.ok || !data?.access_token) throw new Error(data?.detail || 'No se pudo iniciar sesión');
 
         authState.token = data.access_token;
         authState.user = data.user || null;
@@ -513,23 +500,28 @@ function buildBackendPayload() {
 
 function buildIntegrationsPayload() {
     const integrations = {};
-    formData.integrations.forEach(name => {
+    const selected = new Set(formData.integrations || []);
+
+    selected.forEach(name => {
         integrations[name] = { enabled: 'true' };
     });
-    if (formData.whatsapp) {
+
+    if (selected.has('whatsapp') && formData.whatsapp) {
         integrations.whatsapp = {
             ...(integrations.whatsapp || {}),
             enabled: 'true',
             phone: String(formData.whatsapp)
         };
     }
-    if (formData.email) {
+
+    if (selected.has('email') && formData.email) {
         integrations.email = {
             ...(integrations.email || {}),
-            enabled: integrations.email?.enabled || 'true',
+            enabled: 'true',
             address: String(formData.email)
         };
     }
+
     return integrations;
 }
 
