@@ -1,0 +1,12 @@
+{
+  "type": "qa-public-audit",
+  "name": "HBC3 QA Public Audit",
+  "phone": "",
+  "email": "",
+  "description": "Automated non-personal verification",
+  "services": "QA",
+  "html": "<!doctype html><html><body><h1>HBC3_PUBLIC_QA_MARKER</h1></body></html>",
+  "plan": "free",
+  "id": "20dd2a7f",
+  "saved_at": 1782425150
+}
