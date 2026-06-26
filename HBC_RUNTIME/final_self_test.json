@@ -1,7 +1,7 @@
 {
   "build_id": "hbc3-generator-v4-final-20260625-1",
   "status": "FAIL",
-  "checked_at": 1782503925,
+  "checked_at": 1782504424,
   "base": "http://127.0.0.1:10000",
   "checks": {
     "health": true,
@@ -16,8 +16,8 @@
     },
     "save_http": true,
     "save_id": true,
-    "public_view": false,
-    "zip_download": false
+    "public_view": true,
+    "zip_download": true
   },
   "error": null
 }
