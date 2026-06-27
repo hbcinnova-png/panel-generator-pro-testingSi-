@@ -1,22 +1,22 @@
 {
   "build_id": "hbc3-generator-v4-final-20260625-1",
   "status": "FAIL",
-  "checked_at": 1782583831,
+  "checked_at": 1782600115,
   "base": "http://127.0.0.1:10000",
   "checks": {
     "health": true,
     "ready": true,
-    "generator_http": true,
-    "full_original_ui": true,
+    "generator_http": false,
+    "full_original_ui": false,
     "assets": {
-      "styles.css": true,
-      "app.js": true,
-      "hbc3-final-patch.js": true,
+      "styles.css": false,
+      "app.js": false,
+      "hbc3-final-patch.js": false,
       "hbc3-final-hotfix.js": false
     },
     "save_http": true,
     "save_id": true,
-    "public_view": true,
+    "public_view": false,
     "zip_download": true
   },
   "error": null
