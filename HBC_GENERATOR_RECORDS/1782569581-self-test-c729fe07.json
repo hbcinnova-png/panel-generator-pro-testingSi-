@@ -1,0 +1,12 @@
+{
+  "type": "self-test",
+  "name": "HBC3 Runtime QA",
+  "phone": "",
+  "email": "",
+  "description": "Automated non-personal runtime verification",
+  "services": "QA",
+  "html": "<!doctype html><html><body><h1>HBC3_RUNTIME_QA</h1></body></html>",
+  "plan": "free",
+  "id": "c729fe07",
+  "saved_at": 1782569581
+}
