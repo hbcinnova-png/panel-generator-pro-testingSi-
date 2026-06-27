@@ -1,7 +1,0 @@
-# HBC3 CONNECT ROUTER
-
-Estado: CONECTADO
-
-Archivo FastAPI: `backend/api.py`
-
-APTO PARA TESTING / NO VALIDADO EN PRODUCCIÓN.
