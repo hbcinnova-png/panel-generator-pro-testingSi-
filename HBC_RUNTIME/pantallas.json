@@ -517,6 +517,43 @@
       "updated_at": 1782713585,
       "fecha_creacion": "2026-06-29T06:13:05.550690+00:00",
       "created_at": 1782713585
+    },
+    "7ffac621": {
+      "nombre": "Pantalla HBC3",
+      "tipo": "panel",
+      "secciones": [
+        {
+          "titulo": "Sección principal",
+          "descripcion": "Generada por HBC3"
+        }
+      ],
+      "campos": [
+        {
+          "etiqueta": "Nombre",
+          "tipo": "text",
+          "obligatorio": true
+        }
+      ],
+      "botones": [
+        {
+          "texto": "Guardar",
+          "accion": "guardar"
+        }
+      ],
+      "acciones": [
+        {
+          "accion": "guardar"
+        }
+      ],
+      "colores": {
+        "primario": "#19c37d",
+        "secundario": "#5b8cff"
+      },
+      "efectos": {},
+      "id": "7ffac621",
+      "updated_at": 1782713588,
+      "fecha_creacion": "2026-06-29T06:13:08.273636+00:00",
+      "created_at": 1782713588
     }
   }
 }
